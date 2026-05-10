@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Docs — Haunt</title>
+<meta name="description" content="Haunt — every Claude session, kept. Install, configure backends, manual commands, troubleshooting." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="styles.css?v=7" />
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="bodyGrad" cx="35%" cy="22%" r="80%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="55%" stop-color="#e6e6df"/>
+      <stop offset="100%" stop-color="#a8a89e"/>
+    </radialGradient>
+    <linearGradient id="rimLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <symbol id="ghost" viewBox="0 0 80 96">
+      <path d="M 12 42 C 12 23 24.5 8 40 8 C 55.5 8 68 23 68 42 L 68 82 C 68 85.2 65.2 86.6 62.7 84.5 L 57.5 80.2 C 55 78.1 51.5 78.1 49 80.2 L 45 83.6 C 42.5 85.7 37.5 85.7 35 83.6 L 31 80.2 C 28.5 78.1 25 78.1 22.5 80.2 L 17.3 84.5 C 14.8 86.6 12 85.2 12 82 Z" fill="url(#bodyGrad)"/>
+      <path d="M 12 42 C 12 23 24.5 8 40 8 C 55.5 8 68 23 68 42 L 68 50 C 68 32 55.5 17 40 17 C 24.5 17 12 32 12 50 Z" fill="url(#rimLight)" opacity="0.5"/>
+      <ellipse cx="30" cy="40" rx="3.4" ry="4.6" fill="#0a0a0b"/>
+      <ellipse cx="50" cy="40" rx="3.4" ry="4.6" fill="#0a0a0b"/>
+      <ellipse cx="40" cy="54" rx="2.1" ry="2.7" fill="#0a0a0b"/>
+      <ellipse cx="40" cy="91" rx="20" ry="1.6" fill="#000" opacity="0.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="./index.html">
+      <svg class="brand-mark" width="22" height="26" viewBox="0 0 80 96"><use href="#ghost"/></svg>
+      <span class="brand-name">haunt</span>
+      <span class="brand-tag">docs</span>
+    </a>
+    <div class="nav-links">
+      <a href="./docs.html" aria-current="page">Docs</a>
+      <a href="./docs.html#install">Install</a>
+      <a href="./docs.html#backends">Backends</a>
+      <a href="./index.html">Home</a>
+    </div>
+  </div>
+</nav>
+
+<div class="docs-shell">
+  <aside class="docs-sidebar" aria-label="Table of contents">
+    <h4>Getting started</h4>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#layout">Layout</a></li>
+    </ul>
+    <h4>Backends</h4>
+    <ul>
+      <li><a href="#backends">Choosing one</a></li>
+      <li><a href="#backend-local">Local folder</a></li>
+      <li><a href="#backend-vps">VPS over SSH</a></li>
+      <li><a href="#backend-vercel">Vercel endpoint</a></li>
+      <li><a href="#backend-custom">Adding your own</a></li>
+    </ul>
+    <h4>Operating it</h4>
+    <ul>
+      <li><a href="#commands">Manual commands</a></li>
+      <li><a href="#config">Config reference</a></li>
+      <li><a href="#state">State &amp; idempotency</a></li>
+      <li><a href="#disable">Disable / re-enable</a></li>
+    </ul>
+    <h4>Reference</h4>
+    <ul>
+      <li><a href="#output">Output format</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-content">
+
+    <h2 id="overview">Overview</h2>
+    <p>
+      <strong>Haunt</strong> catches every Claude Code session as it ends and turns it into
+      clean, searchable markdown. The whole thing is a single Python file with no
+      dependencies — it reads the JSONL files Claude Code already writes to
+      <code>~/.claude/projects/</code> and ships them to a destination you configure.
+    </p>
+    <p>It runs on two tracks:</p>
+    <ul>
+      <li>A <strong>Stop hook</strong> registered in <code>~/.claude/settings.json</code> uploads each session as it ends. Async — your prompt is never blocked.</li>
+      <li>A <strong>LaunchAgent</strong> at 23:00 local sweeps the day's sessions and writes a per-day index, catching anything the hook missed.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Single file, zero deps.</strong> Everything is in <code>archive.py</code>. Standard library only. No virtualenv. No package manager.
+    </div>
+
+    <h2 id="install">Install</h2>
+    <p>Pick one. Both end up in the same place — the Stop hook wired, the daily sweep scheduled, your existing sessions backfilled.</p>
+
+    <h3>The Mac app (easiest)</h3>
+    <p>Open <code>Haunt.app</code>. The first run wires everything for you and drops a ghost in your menu bar. Settings → Backend lets you flip between local, your VPS, your Vercel endpoint, or our cloud.</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">terminal</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="p">$</span> open /Applications/Haunt.app</pre>
+    </div>
+
+    <h3>One curl, no app</h3>
+    <p>Bootstrap from a terminal. Downloads the script, wires the hook, schedules the sweep, runs the backfill.</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="p">$</span> curl -fsSL https://haunt.sh/install | bash</pre>
+    </div>
+
+    <h3>Already have the script</h3>
+    <p>If <code>~/.claude/haunt/archive.py</code> already exists (you cloned, copied, or installed once before), this is the one command that does everything. Idempotent — safe to re-run.</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="p">$</span> python3 ~/.claude/haunt/archive.py install</pre>
+    </div>
+    <p>Or, from inside any Claude Code session:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">claude code</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>/haunt install</pre>
+    </div>
+
+    <div class="callout">
+      <strong>What gets wired:</strong> a Stop hook in <code>~/.claude/settings.json</code> (real-time, async), a LaunchAgent at <code>~/Library/LaunchAgents/com.haunt.daily.plist</code> (daily safety-net at 23:00), and a one-shot backfill of every session under <code>~/.claude/projects/</code>. Re-runnable, undo-able with <code>uninstall</code>.
+    </div>
+
+    <h2 id="layout">Layout</h2>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">tree</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>~/.claude/Haunt/
+├── archive.py        <span class="c"># the whole thing — parser + renderer + dispatcher</span>
+├── config.json       <span class="c"># backend choice + creds (edit this)</span>
+├── state.json        <span class="c"># per-session fingerprints, prevents re-uploads</span>
+└── logs/
+    ├── archive.log   <span class="c"># operational log</span>
+    └── launchd.*     <span class="c"># stdout/stderr from the daily run</span></pre>
+    </div>
+    <p>Default output (local backend):</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">tree</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>~/Documents/claude-logs/
+└── 2026-05-10/
+    ├── _index.md                                  <span class="c"># daily roll-up with previews</span>
+    ├── build-claude-sessions-cloud-backup__24457bf2.md
+    ├── add-language-picker-switch__b7d98826.md
+    └── …</pre>
+    </div>
+
+    <h2 id="backends">Choosing a backend</h2>
+    <p>Set <code>backend</code> in <code>~/.claude/Haunt/config.json</code>. The script auto-creates a default config on first run; edit it whenever you want to switch.</p>
+
+    <h3 id="backend-local">Local folder (default)</h3>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">json — config.json</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>{
+  <span class="k">"backend"</span>: <span class="s">"local"</span>,
+  <span class="k">"local"</span>: { <span class="k">"root"</span>: <span class="s">"~/Documents/claude-logs"</span> }
+}</pre>
+    </div>
+    <p>Sync the folder however you like — iCloud, Dropbox, Syncthing, a git repo. The archiver doesn't care.</p>
+
+    <h3 id="backend-vps">VPS over SSH</h3>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">json — config.json</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>{
+  <span class="k">"backend"</span>: <span class="s">"vps"</span>,
+  <span class="k">"vps"</span>: {
+    <span class="k">"user"</span>: <span class="s">"abhishek"</span>,
+    <span class="k">"host"</span>: <span class="s">"vps.example.com"</span>,
+    <span class="k">"remote_root"</span>: <span class="s">"~/claude-logs"</span>,
+    <span class="k">"ssh_key"</span>: <span class="s">"~/.ssh/id_ed25519"</span>
+  }
+}</pre>
+    </div>
+    <p>Uses <code>ssh</code> + <code>scp</code> from your shell. Key-based auth only — the script never prompts. The remote directory is created on first upload.</p>
+
+    <h3 id="backend-vercel">Vercel endpoint</h3>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">json — config.json</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>{
+  <span class="k">"backend"</span>: <span class="s">"vercel"</span>,
+  <span class="k">"vercel"</span>: {
+    <span class="k">"url"</span>: <span class="s">"https://your-app.vercel.app/api/claude-log"</span>,
+    <span class="k">"token"</span>: <span class="s">"shared-secret"</span>
+  }
+}</pre>
+    </div>
+    <p>Posts a JSON body to your URL with <code>Authorization: Bearer &lt;token&gt;</code>:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">json — request body</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre>{
+  <span class="k">"path"</span>: <span class="s">"2026-05-10/add-language-picker-switch__b7d98826.md"</span>,
+  <span class="k">"content"</span>: <span class="s">"# Add language picker switch\n…"</span>
+}</pre>
+    </div>
+    <p>Your endpoint decides where to persist — Vercel Blob, Postgres, S3, GitHub commits, KV. Minimal example:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">ts — api/claude-log.ts</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="k">import</span> { put } <span class="k">from</span> <span class="s">"@vercel/blob"</span>;
+
+<span class="k">export async function</span> <span class="n">POST</span>(req: Request) {
+  <span class="k">const</span> auth = req.headers.get(<span class="s">"authorization"</span>);
+  <span class="k">if</span> (auth !== <span class="s">`Bearer ${process.env.TOKEN}`</span>)
+    <span class="k">return new</span> Response(<span class="s">"forbidden"</span>, { <span class="k">status</span>: <span class="n">403</span> });
+
+  <span class="k">const</span> { path, content } = <span class="k">await</span> req.json();
+  <span class="k">await</span> put(path, content, { <span class="k">access</span>: <span class="s">"private"</span> });
+  <span class="k">return</span> Response.json({ <span class="k">ok</span>: <span class="n">true</span> });
+}</pre>
+    </div>
+
+    <h3 id="backend-custom">Adding your own</h3>
+    <p>Backends in <code>archive.py</code> are just functions of the form:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">python</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="k">def</span> _backend_yourname(rel_path: <span class="n">str</span>, body: <span class="n">str</span>, conf: <span class="n">dict</span>) -&gt; <span class="n">None</span>:
+    <span class="c"># rel_path: "2026-05-10/some-session__abcd1234.md"</span>
+    <span class="c"># body:     the rendered markdown</span>
+    <span class="c"># conf:     config.json["yourname"]</span>
+    ...</pre>
+    </div>
+    <p>Add one line to <code>dispatch()</code> and you're done. Around 10 lines for an S3 backend, less for git.</p>
+
+    <h2 id="commands">Manual commands</h2>
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>archive.py session &lt;file&gt;</code></td><td>Archive one specific JSONL. Used by the Stop hook.</td></tr>
+        <tr><td><code>archive.py daily</code></td><td>Today's sessions + write the daily index. Used by the LaunchAgent.</td></tr>
+        <tr><td><code>archive.py daily --date 2026-05-09</code></td><td>Re-process a specific date.</td></tr>
+        <tr><td><code>archive.py backfill</code></td><td>Every session ever recorded. Idempotent.</td></tr>
+        <tr><td><code>archive.py … --force</code></td><td>Ignore <code>state.json</code> and re-upload everything.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="config">Config reference</h2>
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>backend</code></td><td><code>"local"</code></td><td><code>local</code>, <code>vps</code>, or <code>vercel</code>.</td></tr>
+        <tr><td><code>include_tool_results</code></td><td><code>true</code></td><td>Embed tool stdout in <code>&lt;details&gt;</code> blocks.</td></tr>
+        <tr><td><code>tool_result_max_lines</code></td><td><code>40</code></td><td>Per-result truncation cap.</td></tr>
+        <tr><td><code>skip_short_sessions_turns</code></td><td><code>0</code></td><td>Skip sessions with fewer than N user turns.</td></tr>
+        <tr><td><code>local_tz</code></td><td><code>"Asia/Kolkata"</code></td><td>Timezone for date bucketing &amp; timestamps.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="state">State &amp; idempotency</h2>
+    <p><code>state.json</code> stores <code>&lt;size&gt;:&lt;mtime&gt;</code> per JSONL path. A session is re-uploaded only when its file grows or changes — typical for sessions that are still active, or that you resume later. Sessions deleted from <code>~/.claude/projects/</code> stay archived in your destination.</p>
+    <p>If something looks wrong, delete <code>state.json</code> and run <code>backfill</code>. It's that simple.</p>
+
+    <h2 id="disable">Disable / re-enable</h2>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="c"># Pause the daily cron</span>
+<span class="p">$</span> launchctl unload ~/Library/LaunchAgents/com.haunt.daily.plist
+
+<span class="c"># Resume it</span>
+<span class="p">$</span> launchctl load -w ~/Library/LaunchAgents/com.haunt.daily.plist</pre>
+    </div>
+    <p>To pause per-session uploads, remove the <code>hooks.Stop</code> block from <code>~/.claude/settings.json</code>.</p>
+
+    <h2 id="output">Output format</h2>
+    <p>Each session becomes a single markdown file with this shape:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">markdown</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="k"># Build Claude sessions cloud backup system</span>
+
+- <span class="k">**When:**</span> 2026-05-10 12:58:30 IST
+- <span class="k">**Project:**</span> `company` — `/Users/abhishek/Documents/GitHub/company`
+- <span class="k">**Branch:**</span> `main`
+- <span class="k">**Session ID:**</span> `24457bf2-d3b3-49dc-9573-daa93fe87488`
+- <span class="k">**Turns:**</span> 14 user / 20 assistant
+
+---
+
+<span class="k">### User · 12:58:30</span>
+
+build something that automatically takes allllll of my claude sessions…
+
+<span class="k">### Assistant · 12:58:35</span>
+
+Got it. Let me first check how Claude stores sessions on your machine.
+
+<span class="k">**Tool · Bash**</span> — `ls -la ~/.claude/`
+
+```bash
+ls -la ~/.claude/
+```
+
+&lt;details&gt;&lt;summary&gt;Result&lt;/summary&gt;
+
+```
+total 2200
+drwx------   26 abhishek  staff  ...
+```
+&lt;/details&gt;</pre>
+    </div>
+    <p>Daily indexes look like this:</p>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">markdown — _index.md</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="k"># Claude log — 2026-05-10</span>
+
+<span class="c">_8 sessions_</span>
+
+- <span class="k">**12:41:14**</span> · `canvas-test` — [Run demo application](./run-demo-application__c5a26d88.md)
+  &gt; run this I want to demo it
+- <span class="k">**12:43:02**</span> · `spare-465600` — [Add language picker switch](./add-language-picker-switch__b7d98826.md)
+  &gt; Add a switch for language picker
+- <span class="k">**12:58:30**</span> · `company` — [Build Claude sessions cloud backup system](./build-claude-sessions-cloud-backup-system__24457bf2.md)
+  &gt; build something that automatically takes allllll of my claude sessions…</pre>
+    </div>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <h3>The Stop hook isn't firing</h3>
+    <ul>
+      <li>Run <code>claude --debug</code> and look for hook execution logs.</li>
+      <li>Verify JSON parses: <code>python3 -c "import json; json.load(open('/Users/you/.claude/settings.json'))"</code>. Invalid JSON disables <em>all</em> settings silently.</li>
+      <li>If you just installed the hook, open <code>/hooks</code> in Claude Code once — the watcher only re-reads settings.json after a session that started with one.</li>
+    </ul>
+
+    <h3>The LaunchAgent isn't running</h3>
+    <ul>
+      <li><code>launchctl list | grep claude-archiver</code> — should print one row.</li>
+      <li>Check <code>~/.claude/Haunt/logs/launchd.err</code> for stderr.</li>
+      <li>Path issue? LaunchAgents have a minimal <code>$PATH</code>. Use absolute paths everywhere — <code>/usr/bin/python3</code>, not <code>python3</code>.</li>
+    </ul>
+
+    <h3>VPS uploads fail with auth error</h3>
+    <ul>
+      <li>Try the same <code>ssh user@host</code> manually first. The archiver doesn't do anything magical — if your shell can't connect, neither can it.</li>
+      <li>Use <code>StrictHostKeyChecking=accept-new</code> on first run (already set).</li>
+      <li>Confirm the key in <code>config.json</code> has no passphrase, or is loaded into <code>ssh-agent</code>.</li>
+    </ul>
+
+    <h3>I want to start over</h3>
+    <div class="codeblock">
+      <div class="codeblock-header"><span class="codeblock-lang">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+<pre><span class="p">$</span> rm ~/.claude/Haunt/state.json
+<span class="p">$</span> python3 ~/.claude/Haunt/archive.py backfill</pre>
+    </div>
+
+    <hr/>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      Built in one afternoon. Reads JSONL straight out of <code>~/.claude/projects/</code> — no API calls, no auth dance. If Claude Code's storage layout ever changes, the parser is ~80 lines.
+    </p>
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <span class="left">
+      <svg class="ghost-mini" width="14" height="16" viewBox="0 0 80 96"><use href="#ghost"/></svg>
+      Haunt · single Python file, zero deps
+    </span>
+    <span><a href="./index.html">home</a> · <a href="#overview">top</a></span>
+  </div>
+</footer>
+
+<script src="site.js?v=7"></script>
+</body>
+</html>
