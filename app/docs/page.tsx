@@ -76,71 +76,31 @@ export default function DocsPage() {
 
           <h2 id="install">Install</h2>
           <p>
-            Two paths — the Mac app (recommended) or a one-line terminal install. Both
-            end up in the same place: Stop hook wired, watcher loaded, every existing
-            Claude / Codex / Cursor session backfilled to wherever you point the archiver.
-          </p>
-
-          <h3 id="install-app">1 · The Mac app</h3>
-          <p>
-            Single 1.4 MB binary. Universal (Apple Silicon + Intel). Runs as a menu-bar
-            app — no Dock icon. macOS 13+ required.
-          </p>
-
-          <p>
-            <a className="btn btn-primary btn-onboard" href="/Haunt.app.zip" download>
-              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M11.18 8.45c0-1.96 1.6-2.9 1.67-2.95-.92-1.34-2.34-1.52-2.84-1.54-1.21-.13-2.36.71-2.97.71-.61 0-1.56-.7-2.57-.68-1.32.02-2.55.77-3.23 1.96-1.38 2.39-.35 5.93.99 7.88.66.95 1.43 2.02 2.44 1.98.98-.04 1.35-.63 2.54-.63 1.18 0 1.52.63 2.55.61 1.05-.02 1.72-.97 2.36-1.93.74-1.11 1.05-2.18 1.07-2.24-.02-.01-2.05-.79-2.07-3.13zM9.31 2.96c.54-.65.9-1.56.8-2.46-.78.03-1.71.52-2.27 1.17-.5.57-.94 1.49-.82 2.38.86.07 1.75-.44 2.29-1.09z"
-                  fill="currentColor"
-                />
-              </svg>
-              Download Haunt.app.zip
-            </a>
-          </p>
-
-          <p>After it lands:</p>
-          <ol>
-            <li>Double-click <code>Haunt.app.zip</code> to unzip.</li>
-            <li>
-              Move <code>Haunt.app</code> to <code>/Applications</code>.
-            </li>
-            <li>
-              First open will hit Gatekeeper (the bundle is unsigned). Right-click <code>Haunt.app</code>{" "}
-              → <b>Open</b> → confirm. The ghost lands in your menu bar.
-            </li>
-            <li>
-              Click the ghost → <b>Settings</b> → <b>Backend</b>. Pick your destination
-              (local, VPS, Vercel, or our cloud — sign in to{" "}
-              <a href="/app">/app</a> to grab a token).
-            </li>
-          </ol>
-
-          <div className="callout">
-            <strong>Gatekeeper bypass without right-click</strong> — if you&apos;d rather
-            do it from the terminal, run{" "}
-            <code>xattr -dr com.apple.quarantine /Applications/Haunt.app</code>{" "}
-            before the first open.
-          </div>
-
-          <h3 id="install-cli">2 · Terminal one-liner</h3>
-          <p>
-            For the no-GUI path. Sign in at <a href="/app">/app</a>, copy the personalized
-            install command (it has your token baked in), paste it into any terminal:
+            One command. Sign in at <a href="/app">/app</a>, copy your personalized
+            install command (your token baked in), paste it into any terminal:
           </p>
           <CodeBlock
             lang="bash"
             code={`$ curl -fsSL https://haunt-pied.vercel.app/api/v1/install/<your-token> | sh`}
           />
           <p>
-            Or, from inside any Claude Code session:
+            Wires the Stop hook, schedules the watcher, kicks off a parallel
+            backfill of every existing Claude / Codex / Cursor session, and
+            returns your prompt in about a second. Idempotent — safe to re-run
+            whenever you regenerate a token.
+          </p>
+
+          <h3 id="install-claude">From inside Claude Code</h3>
+          <p>
+            If you&apos;re already in a Claude Code session and have the archiver
+            on disk, the slash command shortcut runs the same flow:
           </p>
           <CodeBlock lang="claude code" code={`/haunt install`} />
 
           <h3 id="install-already">Already have the script?</h3>
           <p>
-            If <code>~/.claude/haunt/archive.py</code> exists (you opened the Mac app once,
-            or ran the curl install previously), this re-applies everything from scratch.
+            If <code>~/.claude/haunt/archive.py</code> exists (you ran the curl
+            install previously), this re-applies everything from scratch.
             Idempotent — safe to re-run.
           </p>
           <CodeBlock lang="bash" code={`$ python3 ~/.claude/haunt/archive.py install`} />
