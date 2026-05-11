@@ -94,7 +94,16 @@ function OnboardingCard({
           )}
         </>
       ) : (
-        <p className="onboard-sub">Generating your install command…</p>
+        <div className="onboard-stuck">
+          <p className="onboard-sub">
+            You have an active token, but the plaintext can&apos;t be recovered
+            (only the hash is stored). Regenerate to get a fresh install
+            command — the old token stops working.
+          </p>
+          <a className="btn btn-primary" href="/app/settings#token">
+            Generate install command
+          </a>
+        </div>
       )}
 
       <div className="onboard-divider">
