@@ -34,10 +34,12 @@ export default async function DashboardPage({
   const session = await auth();
   const userId = (session!.user as { id: string }).id;
 
+  // RSC cookie jar is read-only — calling .delete() here throws and 500s
+  // the page (which is exactly what we saw after Regenerate redirected
+  // to /app). The cookie has maxAge:60 set at the action site, so it
+  // expires on its own without us deleting it. Just read.
   const jar = await cookies();
-  const freshCookie = jar.get(FRESH_TOKEN_COOKIE);
-  const fresh = freshCookie?.value ?? null;
-  if (freshCookie) jar.delete(FRESH_TOKEN_COOKIE);
+  const fresh = jar.get(FRESH_TOKEN_COOKIE)?.value ?? null;
 
   const params = await searchParams;
   const filters: Filters = {
