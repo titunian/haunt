@@ -207,101 +207,83 @@ hr { border: 0; height: 1px; background: var(--border); margin: 2.5rem 0; }
    Buttons — outlined
    ====================================================================== */
 /*
- * Skeuomorphic-leaning buttons: subtle dimensional bg gradient, inner top
- * highlight, inner bottom shadow, outer raised drop. Press state translates
- * down 1px and flattens the highlight. Tactile but restrained — matches the
- * macOS native control feel rather than aqua-shiny.
+ * Buttons — clean outlined pills. No inset bevels, no gradient stacks.
+ * The single design move is a phosphor halo that fades in on hover, like
+ * the button is being held in a séance. Active state inverts briefly: the
+ * pill fills white, the text goes black, the halo flares — a single beat
+ * of "yes, I clicked that," then it returns.
+ *
+ * Five states, all driven by the same shadow token:
+ *   rest      transparent fill · soft white border · no halo
+ *   hover     border brightens · phosphor halo (6px ring at low opacity)
+ *   focus     same halo, slightly hotter, for keyboard nav
+ *   active    inverted — white fill, black text, brief flash
+ *   disabled  half-opacity, no transitions
  */
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.7rem 1.2rem;
-  border-radius: 8px;
+  gap: 0.55rem;
+  padding: 0.78rem 1.4rem;
+  border-radius: 999px;
   font-family: var(--font-sans);
-  font-size: 0.93rem;
+  font-size: 0.94rem;
   font-weight: 500;
+  letter-spacing: -0.005em;
   color: var(--text);
   cursor: pointer;
   position: relative;
+  isolation: isolate;          /* contain backdrop-filter for the halo */
 
-  border: 1px solid var(--border-strong);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.18) 100%),
-    #0d0d10;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.45);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 0 rgba(134, 239, 172, 0);
 
   transition:
-    transform 90ms ease,
-    border-color 140ms ease,
-    background 140ms ease,
-    box-shadow 140ms ease,
-    color 140ms ease;
+    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms ease,
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .btn:hover {
-  border-color: var(--text-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.18) 100%),
-    #131318;
-}
-.btn:active {
-  transform: translateY(1px);
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(255, 255, 255, 0) 55%),
-    #0a0a0d;
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 rgba(0, 0, 0, 0);
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 6px rgba(134, 239, 172, 0.07);
 }
 .btn:focus-visible {
   outline: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.45),
-    0 0 0 3px rgba(134, 239, 172, 0.25);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 4px rgba(134, 239, 172, 0.22);
 }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.92);
+  color: var(--bg);
+  box-shadow: 0 0 0 4px rgba(134, 239, 172, 0.18);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-/* Primary — monochrome, brighter face + stronger raise so it reads as the CTA */
+/*
+ * Primary — same shape, slightly more weight at rest (more confident
+ * border, faintest hint of fill) so it reads as the action even before
+ * you mouse-over.
+ */
 .btn-primary {
   border-color: rgba(255, 255, 255, 0.32);
-  color: var(--text);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.20) 100%),
-    #1a1a1d;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
-    0 1px 0 rgba(0, 0, 0, 0.7),
-    0 6px 18px rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.025);
 }
 .btn-primary:hover {
-  border-color: rgba(255, 255, 255, 0.55);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(0, 0, 0, 0.18) 100%),
-    #232328;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
-    0 1px 0 rgba(0, 0, 0, 0.7),
-    0 8px 24px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 8px rgba(134, 239, 172, 0.09);
 }
 .btn-primary:active {
-  transform: translateY(1px);
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0%, rgba(255, 255, 255, 0) 55%),
-    #131316;
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.6),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    0 0 0 rgba(0, 0, 0, 0);
+  transform: scale(0.97);
+  background: #f5f5f0;
+  border-color: #f5f5f0;
+  color: var(--bg);
 }
 
 .btn-danger { border-color: rgba(255, 96, 92, 0.45); color: var(--text); }
@@ -358,31 +340,54 @@ hr { border: 0; height: 1px; background: var(--border); margin: 2.5rem 0; }
 }
 .hero-mark-wrap {
   position: relative;
-  width: 80px;
-  height: 96px;
-  margin: 0 auto 2rem;
+  width: 120px;
+  height: 144px;
+  margin: 0 auto 1.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+/*
+ * The hero ghost gets a faint moonlit aura behind it — a radial fade from
+ * a barely-there phosphor wash to transparent. Sits below the SVG so the
+ * mascot reads as if it's emerging from soft light, not floating on bare
+ * black. Pseudo-element keeps it out of the SVG layer so the cursor-tracking
+ * eyes script doesn't have to know about it.
+ */
+.hero-mark-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -28% -45%;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse 60% 55% at 50% 50%,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(134, 239, 172, 0.04) 30%,
+      transparent 70%
+    );
+  filter: blur(8px);
+  pointer-events: none;
+}
 .hero-mark {
-  width: 80px;
-  height: 96px;
+  width: 120px;
+  height: 144px;
   filter:
-    drop-shadow(0 1px 0 rgba(255,255,255,0.05))
-    drop-shadow(0 18px 40px rgba(0,0,0,0.6));
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.08))
+    drop-shadow(0 22px 36px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 28px rgba(255, 255, 255, 0.04));
   animation: hover 7s ease-in-out infinite;
 }
 @keyframes hover {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-5px); }
+  50%      { transform: translateY(-6px); }
 }
 .hero-pulse {
   position: absolute;
-  right: 0;
-  top: 14px;
-  width: 7px;
-  height: 7px;
+  right: 4px;
+  top: 22px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--live);
   box-shadow: 0 0 0 0 var(--live-glow);
@@ -2167,16 +2172,33 @@ hr { border: 0; height: 1px; background: var(--border); margin: 2.5rem 0; }
 .hero-only .hero-actions { margin-bottom: 2rem; }
 
 /* The question — pull-quote feel, italics, subtle */
+/*
+ * The closing question — a serif aftertaste that reframes the headline.
+ * Sits below the CTA, separated by generous whitespace, with a thin
+ * phosphor rule above it so it reads as a coda rather than a footer.
+ */
 .hero-question {
   font-family: 'Newsreader', 'Iowan Old Style', Georgia, serif;
-  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
   font-style: italic;
   color: var(--text-soft);
-  max-width: 640px;
-  margin: 1.5rem auto 0;
+  max-width: 620px;
+  margin: 4rem auto 0;
   text-align: center;
-  line-height: 1.5;
-  letter-spacing: -0.005em;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  position: relative;
+  padding-top: 2rem;
+}
+.hero-question::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 32px;
+  height: 1px;
+  background: rgba(134, 239, 172, 0.35);
+  transform: translateX(-50%);
 }
 .hero-question em {
   color: var(--live);
