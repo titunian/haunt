@@ -1,369 +1,342 @@
-# Cross-Corpus Personal Context — research plan
+# Haunt — research plan
 
 > Branch `research/distillation`. Working notes — not stable, not shipped.
+>
+> **Scope:** Haunt only. Just the coding-sessions corpus. Cross-corpus
+> work (orfc plans, loop tribal-knowledge) is a clearly-deferred Phase 4+;
+> the same primitives extend to it later, but we're not designing for that
+> now.
 
-## What we already have
+## What we have to work with
 
-Three independently-built capture systems, each producing a different shape
-of personal/team artifact:
+A growing per-user archive of coding sessions:
 
-| System | Corpus | Granularity | What's already there |
-|---|---|---|---|
-| **haunt** (`Documents/GitHub/haunt`, `~/.claude/haunt`) | Coding sessions across Claude Code, Codex CLI, Cursor | Per-conversation markdown | Real-time capture, watcher daemon, Postgres + Blob backend, web dashboard |
-| **orfc** (`Documents/GitHub/rfc`) | Agent-written plans / RFCs / migration designs reviewed by humans | Per-document with versioned comment threads | CLI (`push`, `pull`), web viewer, inline comments anchored to text snippets, version history |
-| **loop** (`Documents/GitHub/pavo/loop`) | Workspace data context — connectors, datasets, schema decisions | `AGENT.md` files, tribal-knowledge scans, Pavo `AskTribalKnowledge` | `TribalStore` / `TribalSource` / `LocalTribalSource` / `TribalFile`, ingestion pipeline, registry, query API |
+- **Sources** — Claude Code (`~/.claude/projects/**/*.jsonl`), Codex CLI
+  (`~/.codex/sessions/**/*.jsonl`), Cursor (composer/agent bubbles in
+  `state.vscdb`).
+- **Shape** — turn-by-turn dialogue with structured tool calls (Read,
+  Edit, Write, Bash, Grep, etc.) and tool results. Per session: project
+  cwd, branch, timestamps, sometimes git commits and PR references.
+- **Volume** — at the operator's working tier, ~1,100 sessions / 33 days
+  / ~67 MB markdown after cleanup. Roughly 30M tokens of dense, narrow,
+  structured corpus.
+- **Already in the cloud** — Postgres metadata (`sessions` table) +
+  Vercel Blob bodies, with a real-time ingest pipeline.
 
-The architectural primitives exist. The unsolved problem is **composing them
-into one personal context surface that is queryable, reflective, and
-actionable** — without each system needing to know about the others.
+That structure is the differentiator from generic "AI second brain"
+products. Tool calls give us reliable signals about *what was done*;
+prompt→correction pairs give us preference data; per-session `cwd` gives
+us project clustering for free.
 
-## Why this is a research problem (not a product engineering problem)
+## Why this is a research problem
 
-The "second brain over a private multi-corpus" use case sits at the intersection
-of several open problems in the literature:
+Five open questions sit between us and a working personal-knowledge layer
+over coding sessions specifically. None are settled in published work:
 
-1. **Schema-free knowledge integration across heterogeneous sources.** Each
-   corpus has its own structure (turn-by-turn dialogue vs versioned doc with
-   anchored comments vs key-value tribal cards). Existing fusion techniques
-   (entity resolution, ontology alignment) assume cleaner schemas than we have.
-2. **Continual personalization without weight updates.** Frontier-lab consensus
-   has shifted to memory-and-context approaches over per-user fine-tuning, but
-   the algorithms for *what to keep in memory*, *when to consolidate*, and
-   *how to retrieve hierarchically* remain unsettled.
-3. **Reflective synthesis at multiple time scales.** Generative-Agents-style
-   reflection works for single-stream observations, but no published technique
-   robustly handles "produce a coherent quarterly narrative from
-   coding-sessions + reviewed-plans + tribal-knowledge updates."
-4. **Personal evaluation harnesses.** Whether a context-augmented model is
-   actually closer to "you" than the base — open empirical question. No
-   canonical benchmark.
-5. **Privacy-preserving extraction at the operator layer.** Once distilled,
-   the extracts are *more* sensitive than the raw text. E2EE on extracts is
-   open; nothing canonical exists.
+1. **Adaptive extraction over heterogeneous session shapes.** A 3-turn
+   "fix this typo" session and a 200-turn "rewrite the deploy pipeline"
+   session need different schemas, not the same template. Self-Discover
+   `[Zhou 2024, arXiv:2402.03620]` is the closest pointer; not yet applied
+   to dialogue corpora.
+2. **Tool-call-aware extraction.** Most extraction literature treats
+   documents as prose. We have rich structural signals (Bash output,
+   file edits, test results) the model should weight differently than
+   chat turns. No published technique uses this directly.
+3. **Reflection schedule for bursty corpora.** Coding happens in bursts
+   — five sessions on Tuesday, none Wednesday. Generative Agents
+   `[Park 2023, arXiv:2304.03442]` reflects every N observations,
+   which over-indexes on prolific weeks. Threshold-by-novelty is
+   probably right but unproven.
+4. **Mining preference data from sessions.** Every prompt→
+   first_attempt→user_correction triplet is an implicit preference label.
+   Extracting them cleanly at scale, deduping for the model's repeated
+   first-attempt patterns — open. Closest precedent: Constitutional AI
+   `[Bai 2022, arXiv:2212.08073]` self-critique.
+5. **Personal evals without ground truth.** Standard benchmarks don't
+   measure "does this feel like me." LLM-judge with personal context as
+   the rubric, Self-Reward-style `[Yuan 2024, arXiv:2401.10020]`, is
+   the most defensible approach but unvalidated.
 
-We don't need to solve these. We need to make principled architectural choices
-and cite the literature we're standing on.
-
-## The literature we're standing on
+## Literature we're standing on
 
 Cited as `[author, year, arXiv:id]` — published preprints, not reproduced.
 
 ### Knowledge extraction & graph-based retrieval
+- **GraphRAG** — Edge et al., Microsoft, 2024, `arXiv:2404.16130`. Entity-relation extraction → community clustering → multi-resolution summaries. Wins at "what's this corpus about" but heavy at our scale.
+- **LazyGraphRAG** — Microsoft, late 2024 (blog + code). Defer graph construction until query. Cheaper at our query volume.
+- **HippoRAG / HippoRAG 2** — Gutiérrez et al., OSU/Stanford, 2024, `arXiv:2405.14831`. Personalized PageRank over an LLM-extracted KG; state-of-art on multi-hop.
+- **LightRAG** — Guo et al., 2024, `arXiv:2410.05779`. Dual-level retrieval, lower indexing cost.
 
-- **GraphRAG** — Edge et al., Microsoft, 2024, `arXiv:2404.16130`. Entity-
-  relation extraction → Leiden community clustering → multi-resolution
-  community summaries. Strong on global "sense-making" queries; weak ROI at
-  small corpora.
-- **LazyGraphRAG** — Microsoft, late 2024 (blog + code). Defer graph
-  construction until query time; use a router LLM to decide when global
-  synthesis is needed vs vanilla retrieval. Cheaper at low query volume —
-  matches our scale.
-- **HippoRAG / HippoRAG 2** — Gutiérrez et al., OSU/Stanford, 2024,
-  `arXiv:2405.14831`. Personalized PageRank over an LLM-extracted KG,
-  fused with dense retrieval. State-of-art on multi-hop questions.
-- **LightRAG** — Guo et al., 2024, `arXiv:2410.05779`. Dual-level (entity +
-  relation) retrieval over an LLM-extracted graph. Lower indexing cost than
-  GraphRAG, comparable quality on local queries.
-
-### Memory systems for LLM agents
-
-- **MemGPT / Letta** — Packer et al., Berkeley, 2023, `arXiv:2310.08560`.
-  Virtual context management; LLM-as-OS with paged main + recall memory.
-  The conceptual frame for "what stays hot vs cold" in a personal context.
-- **Generative Agents** — Park et al., Stanford, 2023, `arXiv:2304.03442`.
-  Observation stream → periodic reflection passes → high-level beliefs.
-  The reflection schedule is what we'd port to "weekly digest" / "monthly
-  themes" / "quarterly trajectory."
-- **A-MEM (Agentic Memory)** — Xu et al., 2024-2025. Self-organizing memory
-  notes inspired by the Zettelkasten method; the agent links memory items at
-  write-time. Useful framing for cross-corpus links (a session links to an
-  orfc plan it was implementing, etc.).
-- **MemoryBank** — Zhong et al., 2023, `arXiv:2305.10250`. Forgetting curve
-  inspired by Ebbinghaus; useful for tribal-knowledge retention.
+### Memory systems
+- **MemGPT / Letta** — Packer et al., Berkeley, 2023, `arXiv:2310.08560`. Virtual context management; LLM-as-OS.
+- **Generative Agents** — Park et al., Stanford, 2023, `arXiv:2304.03442`. Observation→reflection→memory stream — directly the model for our daily/weekly/monthly distillation.
+- **A-MEM** — Xu et al., 2024-2025. Self-organizing memory notes; agent links items at write-time.
+- **MemoryBank** — Zhong et al., 2023, `arXiv:2305.10250`. Forgetting curve.
 
 ### Programs over prompts
-
-- **DSPy** — Khattab et al., Stanford, 2023-2024, `arXiv:2310.03714`. Treat
-  pipelines as differentiable programs; auto-optimize prompts against an
-  eval. We should structure the extraction pipeline as DSPy modules so
-  prompt updates are evaluated, not vibes-tested.
-- **TextGrad** — Yuksekgonul et al., 2024, `arXiv:2406.07496`. Backprop
-  through text; useful for tuning extraction prompts against gold labels.
-- **The Shift from Models to Compound AI Systems** — Berkeley AI, 2024
-  (blog post by Zaharia, Khattab, et al.). The architectural argument
-  for why our extraction pipeline should be modular, not a single mega-prompt.
+- **DSPy** — Khattab et al., Stanford, 2023-2024, `arXiv:2310.03714`. Pipeline as program; auto-optimize prompts against an eval. The right way to build the extraction module.
+- **TextGrad** — Yuksekgonul et al., 2024, `arXiv:2406.07496`. Backprop through text; tune prompts against gold labels.
 
 ### Reasoning models for extraction
+- **DeepSeek-R1** — DeepSeek, 2025, `arXiv:2501.12948`. GRPO without value model; reasoning emerges from RL on verifiable rewards.
+- **Self-Discover** — Zhou et al., DeepMind, 2024, `arXiv:2402.03620`. LLM composes its own reasoning structure per task — directly applicable to adaptive extraction.
+- **Many-shot ICL** — Agarwal et al., Anthropic/DeepMind, 2024, `arXiv:2404.11018`. Hundreds-to-thousands of examples in long context outperform fine-tuning on many tasks.
 
-- **DeepSeek-R1 / R1-Zero** — DeepSeek, 2025. GRPO without value model;
-  reasoning emerges from RL on verifiable rewards. The extraction pipeline
-  should use a reasoning model for the hard parts (decision detection,
-  multi-hop reference resolution) where chain-of-thought materially helps.
-- **Many-shot in-context learning** — Agarwal et al., Anthropic/DeepMind,
-  2024, `arXiv:2404.11018`. Hundreds-to-thousands of examples in long
-  context outperform fine-tuning on many tasks. Argues against per-user
-  fine-tunes for our use case.
-- **Self-Discover** — Zhou et al., Google DeepMind, 2024, `arXiv:2402.03620`.
-  LLM composes its own reasoning structure per task. Useful for adaptive
-  extraction (let the model decide what's notable in *this* session).
-
-### Personalization & preference learning
-
-- **Direct Preference Optimization (DPO)** — Rafailov et al., Stanford,
-  2023, `arXiv:2305.18290`. The default for preference fine-tuning until
-  ~late 2024.
-- **GRPO** — DeepSeek, 2024 (in DeepSeek-R1 paper, `arXiv:2501.12948`).
-  Group-relative policy optimization; no value model. Becomes interesting
-  for personal models when we have enough preference pairs.
-- **Self-Reward** — Yuan et al., Meta, 2024, `arXiv:2401.10020`. Same model
-  generates and critiques; bootstraps preference data without humans. Plausible
-  source of synthetic preference labels from the haunt archive.
-- **Constitutional AI** — Bai et al., Anthropic, 2022, `arXiv:2212.08073`.
-  Model self-critiques against a written "constitution." For personal
-  context, the constitution would be derived from tribal knowledge.
-
-### Long-context utilization
-
-- **Lost in the Middle** — Liu et al., 2023, `arXiv:2307.03172`. Recall
-  drops in the middle of long context. Argues for retrieval over
-  stuff-everything-in even with 1M+ windows.
-- **Many-shot ICL** (cited above) — argues the opposite for some tasks.
-  The right answer is task-dependent.
+### Long context utilization
+- **Lost in the Middle** — Liu et al., 2023, `arXiv:2307.03172`. Recall drops in mid-context. Argues for retrieval over stuff-everything-in.
 
 ### Agentic search
+- **ReAct** — Yao et al., 2022, `arXiv:2210.03629`. Interleave reasoning + tool calls; foundation.
+- **Toolformer** — Schick et al., Meta, 2023, `arXiv:2302.04761`.
+- **Search-R1** — Jin et al., 2025, `arXiv:2503.09516`. RL for search agents.
 
-- **ReAct** — Yao et al., 2022, `arXiv:2210.03629`. Interleave reasoning
-  and tool calls; foundation of all agentic search.
-- **Toolformer** — Schick et al., Meta, 2023, `arXiv:2302.04761`. Model
-  learns when to call tools.
-- **Search-R1** — Jin et al., 2025, `arXiv:2503.09516`. RL-trained search
-  agents; relevant if we ever want to optimize the agentic search loop
-  end-to-end.
+### Personal LLM agents (survey)
+- **Personal LLM Agents: Insights and Survey** — Li et al., 2024, `arXiv:2401.05459`. State-of-the-field for what we're building.
 
-### Personal LLM agents (the survey)
+## The algorithm — four composed pipelines, Haunt-scoped
 
-- **Personal LLM Agents: Insights and Survey about the Capability,
-  Efficiency and Security** — Li et al., 2024, `arXiv:2401.05459`. The
-  closest thing to a state-of-the-field survey for what we're building.
-  Worth reading before any architectural choice.
+Same architecture as before, narrowed to one corpus. The composition is what
+makes it work; nothing here is novel on its own.
 
-## The algorithm — three composed pipelines
+### Pipeline A — per-session distillation (foundation)
 
-We're not inventing a new algorithm. We're composing four existing ones into
-a pipeline tuned for the multi-corpus personal-context setting.
-
-### Pipeline A — per-artifact distillation (foundation layer)
-
-For each new artifact (haunt session, orfc doc revision, loop AGENT.md
-update), run a **single LLM extraction call** producing a stable structured
-output. Use a reasoning model for hard cases (orfc plan with embedded code +
-threaded comments) and a cheap model for easy cases (a 3-turn coding
-session).
-
-Schema (versioned via `prompt_version`):
+For each new session, one LLM extraction call → structured output.
+Reasoning model for hard sessions (long, multi-project, dense tool use);
+cheap model for easy ones. Versioned via `prompt_version`.
 
 ```ts
 type Extract = {
-  source: "haunt" | "orfc" | "loop";
-  artifact_id: string;
-  ts: string;
+  session_id: string;
+  prompt_version: string;
+  model: string;
+  extracted_at: string;
+
   summary: string;                    // 2-4 sentences
   decisions: { what: string; why: string; alternatives?: string[] }[];
   bugs_solved: { symptom: string; cause: string; fix: string }[];
-  questions_open: string[];           // unresolved at end of artifact
+  questions_open: string[];           // unresolved at end of session
   facts_learned: string[];            // atomic, transferable
-  references: {                       // links to other artifacts
-    kind: "session" | "orfc_doc" | "tribal" | "url" | "file" | "repo";
-    id: string;
-    relation: "implements" | "supersedes" | "references" | "blocked_by"
-  }[];
-  entities: { kind: string; name: string }[];  // for graph layer
+  tools_used: string[];               // libs, commands, files
   themes: string[];                   // free-form tags
+
+  // Implicit preference signal: every (assistant_first, user_correction)
+  // pair where the user steered the model. Mined automatically — no
+  // explicit labelling. Foundation for Phase 5+ (personal model).
+  preference_pairs: {
+    user_prompt: string;
+    rejected: string;            // assistant's first attempt
+    accepted: string;            // what landed after correction
+    correction_signal: string;   // what the user said to steer
+  }[];
 };
 ```
 
 Pulled from: GraphRAG entity extraction `[Edge 2024]`, Generative Agents
-observation→reflection schema `[Park 2023]`, A-MEM linking
-`[Xu 2024]`, with `references` capturing cross-corpus edges (orfc doc
-implements decision from haunt session N, loop AGENT.md cites tribal fact M).
+observation→reflection schema `[Park 2023]`, with `preference_pairs` as
+our novel contribution — exploiting the dialogue structure of coding
+sessions to mine preference labels for free.
+
+Built as a DSPy module `[Khattab 2023]` so the extraction prompt can be
+optimized against the hand-labeled eval set, not vibes-tested.
 
 ### Pipeline B — agentic retrieval (query layer)
 
-No pre-built vector index. Tools exposed to a reasoning model:
+No pre-built vector index initially. Tools exposed to a reasoning model:
 
-- `search(corpus, query, time_range?, project?, k=10)` — hybrid BM25 + dense
-- `read_artifact(corpus, id)` — full artifact body
-- `neighbors(corpus, id, hops=1)` — graph-walk via `references`
-- `cluster(theme)` — return all artifacts under a theme
+- `search(query, time_range?, project?, source?, k=10)` — hybrid BM25
+  (`pg_trgm`) + dense (`pgvector` over extract summaries)
+- `read_session(id)` — full session body
+- `cluster(theme)` — sessions under a theme
 - `timeline(start, end, project?)` — chronological slice
+- `decisions_for(topic)` — pull all `decisions` where topic appears
 - `frontier_check(query)` — escalate to long-context dump if agentic
   search isn't converging
 
-The retrieval agent decides which tools to call. Justified by ReAct
-`[Yao 2022]`, Search-R1 `[Jin 2025]`, and the LazyGraphRAG argument that
-deferring synthesis to query time is cheaper than pre-computing community
-summaries we may never read.
+Justified by ReAct `[Yao 2022]`, Search-R1 `[Jin 2025]`, and the
+LazyGraphRAG argument that deferring synthesis to query time is cheaper
+at our query volume than pre-computing community summaries we may never
+read. Wrapped in DSPy so we can swap models and optimize prompts
+against an eval set.
 
-For implementation: DSPy `[Khattab 2023]` modules so we can swap models and
-optimize prompts against an eval set without prose-rewrites.
-
-### Pipeline C — reflection cron (synthesis layer)
+### Pipeline C — reflection cron (synthesis)
 
 Three reflection passes, modeled directly on Generative Agents
 `[Park 2023]`:
 
-- **Daily** — for each project touched today, generate a 1-paragraph
-  what-happened summary. Cheap model. Powers the dashboard's "today" view.
-- **Weekly** — cross-project "what did you figure out this week?" Operates
-  over the week's daily summaries (not raw artifacts). Reasoning model.
-- **Monthly / quarterly** — theme drift, retired patterns, project
-  trajectories. Operates over weekly digests. Output goes to orfc as a
-  reviewable doc — closing the loop, since tribal knowledge gets *back into*
-  the doc-of-record.
+- **Daily** — for each project touched today, 1-paragraph what-happened
+  summary. Cheap model. Powers a "today" view.
+- **Weekly** — cross-project "what did you figure out this week?"
+  Operates over the week's daily summaries (not raw sessions). Reasoning
+  model.
+- **Monthly** — theme drift, retired patterns, project trajectories.
+  Operates over weekly digests.
 
-Reflection consumes the output of the layer below — the literature calls
-this "hierarchical summarization for long documents," with `[Wu 2021]`
-(arXiv:2109.10862) being the canonical reference.
+Hierarchical summarization, canonical reference: `[Wu 2021,
+arXiv:2109.10862]`. Each level consumes the layer below — cheap because
+we aggregate distilled extracts, not raw sessions.
 
-### Pipeline D — personal context document (output layer)
+Trigger is novelty-based, not time-based: only generate the weekly digest
+if the embedding-distance from last week's digest exceeds a threshold.
+Avoids "you didn't do anything this week" noise.
+
+### Pipeline D — personal context document (output)
 
 Distill all of the above into a single ~30-50K token markdown document —
-the "personal system prompt." Sections:
+the **personal system prompt**. Sections:
 
-- Conventions (extracted from recurring patterns + AGENT.md files)
-- Active projects (extracted from recent themes + git activity)
-- Recent decisions (last 90 days of `decisions` from extracts)
+- Conventions (recurring patterns + style across sessions)
+- Active projects (recent themes + git activity)
+- Recent decisions (last 90 days from `decisions`)
 - Common bugs (top-N from `bugs_solved`, deduped)
-- Open questions (unresolved `questions_open` across artifacts)
-- Vocabulary (entity names recurring across corpora)
+- Open questions (unresolved `questions_open`)
+- Vocabulary (entities recurring across sessions)
 
-Regenerated nightly from the layers above. **This document is the product.**
-Drop into a Claude/GPT system prompt and the model behaves dramatically
-more like-you. Many-shot ICL `[Agarwal 2024]` is the empirical case for
-why this works at our token budget without any fine-tuning.
+Regenerated nightly. **This document is the product.** Drop into a Claude
+or GPT system prompt and the model behaves dramatically more like-you.
+Many-shot ICL `[Agarwal 2024]` is the empirical case for why this works
+at our token budget without any fine-tuning.
 
 ## Algorithm summary
 
 ```
-                       ┌──────────────────┐
-   haunt sessions ───► │                  │
-                       │   Pipeline A     │  ─►  extracts table (Postgres)
-   orfc docs     ───► │   (extraction)   │       references = cross-corpus edges
-                       │                  │
-   loop tribal   ───► │                  │
-                       └──────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-       user query ───► │   Pipeline B     │ ─►  answer + cited artifacts
-                       │ (agentic search) │
-                       └──────────────────┘
-                                ▲
-                                │ optional escalation
-                                │
-                       ┌──────────────────┐
-                       │   Pipeline C     │ ─►  daily/weekly/monthly digests
-       cron        ───►│  (reflection)    │     posted to orfc as docs
-                       └──────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │   Pipeline D     │ ─►  personal context document
-                       │ (context doc)    │     (the "second brain payload")
-                       └──────────────────┘
+                          ┌──────────────────┐
+   haunt sessions ───────►│   Pipeline A     │ ─►  extracts table (Postgres)
+                          │  (extraction)    │     + preference_pairs
+                          └──────────────────┘     mined automatically
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+       user query ───────►│   Pipeline B     │ ─►  answer + cited sessions
+                          │ (agentic search) │
+                          └──────────────────┘
+                                   ▲
+                                   │ optional escalation
+                                   │
+                          ┌──────────────────┐
+                          │   Pipeline C     │ ─►  daily / weekly / monthly
+       cron        ──────►│  (reflection)    │     digests as readable docs
+                          └──────────────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+                          │   Pipeline D     │ ─►  personal context document
+                          │ (context doc)    │     (the "second brain payload")
+                          └──────────────────┘
 ```
 
-## Open research questions, prioritized
+## Phased plan
 
-These are things we'd genuinely *not know* until we run the experiment:
+Research deliverables, not just shipped features. Each phase produces
+something measurable.
 
-1. **Does `Pipeline D` output beat fine-tuning on personal tasks?** Open
-   empirical question; cleanest answer in many-shot ICL `[Agarwal 2024]` is
-   "frequently yes." Worth running: same task, frontier model + 50K personal
-   context vs same model fine-tuned on the same corpus. Personal eval set
-   needed.
-2. **What's the right reflection schedule?** Generative Agents `[Park 2023]`
-   reflects every N observations. Our equivalent might be every N artifacts,
-   or time-based, or threshold-based on novel-content detection. No
-   canonical answer.
-3. **Cross-corpus link extraction quality.** Can a model reliably detect
-   "this haunt session is implementing this orfc plan"? No literature on
-   exactly this — closest is entity-linking work over heterogeneous corpora
-   (DBpedia spotlight era). Probably needs supervised eval.
-4. **Reflection drift over time.** Generative Agents observed reflections
-   compound; quality can degrade if low-signal observations dominate. We'd
-   need a drift detector — possibly via embedding-distance between
-   month-N and month-N+1 personal context documents.
-5. **Personal evals without ground truth.** Standard LLM evals don't measure
-   "does this feel like me?" Possible approach: LLM-judge with the personal
-   context as the rubric. Self-Reward `[Yuan 2024]` pattern, but for
-   personalization rather than capability.
+### Phase 0 — eval set (week 1, day 1-2)
+Hand-extract 30 representative sessions across Claude/Codex/Cursor and
+short/medium/long lengths. This is ground truth for measuring extraction
+quality. Without it the rest is vibes.
 
-## Plan
+### Phase 1 — Pipeline A live (week 1)
+- Drizzle `extracts` table, schema versioned
+- DSPy module `extract_session(markdown) -> Extract`, optimized against
+  the eval set
+- Background job to extract new sessions on upload + backfill switch
+- Per-session "Distillation" card on `/app/sessions/[id]` showing the
+  extract above the raw markdown
+- **Deliverable:** F1 ≥ 0.7 on the hand-labeled eval set across the four
+  primary fields (decisions, bugs, learnings, themes)
 
-Phased, with research deliverables (not just shipped features):
+### Phase 2 — Pipeline B live (week 2)
+- Hybrid retrieval over `extracts` (`pg_trgm` + `pgvector` on summaries)
+- Tool set exposed to a reasoning model agent
+- New `/app/search` route with `⌘K` palette
+- 50 hand-judged personal queries as the eval set
+- **Deliverable:** recall@5 ≥ 0.8, qualitative preference vs naive RAG
+  baseline measured by blind LLM-judge
 
-### Phase 0 — wire the substrate (week 1)
-- Drizzle `extracts` table (the schema above) with `source` discriminator
-- DSPy module for `extract_session(markdown) -> Extract` — Pipeline A for haunt
-- Manual eval set: 30 sessions hand-extracted as ground truth
-- Test extraction quality, iterate prompt, freeze `prompt_version=v1`
+### Phase 3 — Pipeline C live (week 3-4)
+- Daily + weekly cron jobs producing digests, stored as artifacts
+- Novelty-triggered weekly summary (embedding distance ≥ threshold)
+- Monthly digests after a month of weeklies have accumulated
+- New `/app/research` view for the digests
+- **Deliverable:** 4 weeks of generated digests; manual quality scoring
+  (1-5) on each; mean ≥ 4
 
-### Phase 1 — second source: orfc plans (week 2)
-- `orfc list` + `orfc pull` integration; treat each doc revision as an artifact
-- DSPy module `extract_orfc(doc, comments) -> Extract`
-- Cross-corpus link detection: when a haunt session mentions an orfc slug, populate `references`
-- First eval: precision/recall of cross-corpus links on hand-labeled set
+### Phase 4 — Pipeline D live + first eval (week 5)
+- Nightly personal context document, versioned
+- A/B eval harness: 30 personal coding tasks; Claude with vs without
+  the personal context doc; blind LLM-judge for preference
+- **Deliverable:** ≥ 70% preference rate for the augmented variant.
+  If not, iterate on the document structure before declaring victory.
 
-### Phase 2 — third source: loop tribal-knowledge (week 3)
-- Scan `loop_memory/tribal` directories, ingest each `TribalFile` as an artifact
-- Pipeline A on tribal artifacts (mostly trivial — they're already structured)
-- Cross-corpus links: tribal facts ↔ haunt sessions that mention the entities
-- Now we have a unified `extracts` table populated from all three corpora
+### Phase 5 — preference dataset (background, ongoing)
+- The `preference_pairs` field of each extract feeds a `preferences`
+  table
+- After ~3 months of capture, evaluate quality + dedupe
+- **Deliverable:** a clean dataset of (prompt, rejected, accepted)
+  triplets — substrate for future fine-tunes (DPO `[Rafailov 2023]` /
+  GRPO `[DeepSeek 2024]`) when we choose to pull that lever
 
-### Phase 3 — agentic retrieval (week 4)
-- Implement the tool set from Pipeline B
-- Wrap in a DSPy retrieval program with optimized prompts
-- Eval: 50 personal queries with hand-judged correct artifacts; measure
-  recall@5 and answer quality vs naive RAG baseline
+## Open questions, prioritized
 
-### Phase 4 — reflection (week 5-6)
-- Daily/weekly/monthly cron jobs
-- Weekly digests posted to orfc as reviewable docs
-- The output of reflection re-enters Pipeline A as new artifacts (recursion)
+These are things we genuinely won't know until we run the experiment:
 
-### Phase 5 — personal context document (week 6-7)
-- Pipeline D nightly job, output stored as a versioned artifact
-- A/B eval: same task, frontier model with vs without the document. Measure
-  preference rate via blind judge (Self-Reward pattern).
+1. **Does Pipeline D output beat fine-tuning on personal coding tasks?**
+   Many-shot ICL `[Agarwal 2024]` argues yes for many domains. Worth
+   running our own A/B (Phase 4 deliverable).
+2. **What's the right reflection trigger?** Time-based vs
+   observation-count vs novelty-distance. Plan: novelty-based; measure
+   in Phase 3.
+3. **Cross-session decision-supersession detection.** Can a model
+   reliably find "every time I changed my mind about X"? No literature
+   on exactly this. Probably needs a small supervised eval set.
+4. **Reflection drift.** Generative Agents observed reflections compound
+   and can degrade; we'd need a drift detector via embedding distance
+   between consecutive monthly contexts.
+5. **Personal evals without ground truth.** LLM-judge with personal
+   context as the rubric (Self-Reward `[Yuan 2024]` pattern) is the
+   plan; validate against your own preference rankings on 50 examples.
 
-### Phase 6 — research writeup
-- Document what worked, what didn't, where the literature was wrong
-- Open questions list updated
-- Decide whether to publish or stay internal
+## Success metric
 
-## What success looks like
+Not "the dashboard has more cards." Two real measurements:
 
-Not "the dashboard has more cards." Two concrete measurements:
+1. **Personal eval, blind-judged.** 30 of your real coding tasks; same
+   model with vs without the personal context document; preference
+   judged by a separate model. Target: ≥ 70% preference for the
+   augmented variant.
+2. **One real query that current tools can't answer.** Example:
+   *"every time I've changed my mind about how to handle authentication
+   across the projects I've worked on this year."* If the search agent
+   can produce a coherent answer with cited sessions, the
+   distillation-plus-retrieval composition is real.
 
-1. **Personal eval harness, scored by you.** Pick 30 tasks you actually do
-   (debug X, draft a PR for Y, decide between Z and W). Score base model vs
-   base model + personal context document on each. Target: > 70% preference
-   for the augmented variant in a blind comparison.
-2. **One real cross-corpus query that current tools can't answer.** Example:
-   "Show me every time I changed my mind about how to handle X" — this
-   requires linking decisions across haunt sessions and superseding orfc
-   plans. If we can answer this, the composition is real.
+## Future work — clearly deferred
 
-## What we're explicitly not doing
+These are NOT in the current plan. Captured here so we don't forget the
+trajectory:
 
-- Not building a per-user fine-tune. Many-shot ICL + personal context doc
-  has the better cost/quality curve at our scale today.
-- Not building a vector DB as primary infrastructure. Hybrid search on
-  Postgres `pg_trgm` + `pgvector` is enough until proven otherwise.
-- Not building a UI for browsing the graph. The graph is server-side
-  infrastructure; the user-facing surfaces are search, digests, and the
-  context document.
-- Not promising E2EE before extraction. The extracts are sensitive but
-  encrypting them blocks the synthesis step. Privacy is a v2 problem,
-  scoped here only enough to flag it.
+- **orfc as a second corpus.** Same Pipeline A schema with `source: "orfc"`.
+  Cross-source links in a `references` field. Adds the doc-of-record
+  layer once Haunt-only is shipping cleanly.
+- **loop's `TribalStore` as a third corpus.** Same Pipeline A pattern;
+  tribal cards are already structured so extraction is mostly trivial.
+- **MCP exposure.** The four pipelines (especially Pipeline B's tools)
+  exposed as an MCP server so Claude/Codex/Cursor can query the second
+  brain mid-session. This is where "agent learns from your archive in
+  real time" becomes possible.
+- **Personal model.** With 6-12 months of `preference_pairs`
+  accumulated, fine-tune a small open-weight model with GRPO. Local-
+  first, private, owned. Not a capability play — a privacy + cost play.
+- **E2EE before extraction.** Once cross-corpus and personal-model work
+  is sketched, the privacy budget for "operator can read everything"
+  starts to bite. Real client-side encryption is a v2 redesign.
+
+## What we're explicitly not doing now
+
+- Per-user fine-tune (Phase 5 mines the substrate; the actual fine-tune
+  is later)
+- A graph index (LazyGraphRAG argument: defer until query)
+- Multi-corpus ingestion (the substrate supports it; we're not
+  designing for it yet)
+- A graph-browser UI (graph is server-side infrastructure if it ever
+  exists)
+- Promising any of this externally before Phase 4's A/B eval lands
