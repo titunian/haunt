@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   deleteAccount,
   exportData,
@@ -13,10 +14,14 @@ interface Props {
 }
 
 export default function SettingsActions({ hasActiveToken }: Props) {
-  const [pending, startTransition] = useTransition();
-  const [busy, setBusy] = useState<
-    "regen" | "revoke" | "export" | "delete" | null
-  >(null);
+  const router = useRouter();
+  const [busy, setBusy] = useState<"export" | null>(null);
+
+  // Server-action forms below pass the action function DIRECTLY to <form
+  // action={...}>. That's the form NextJS knows how to special-case for
+  // redirects thrown from inside the action. Wrapping in startTransition
+  // surfaces NEXT_REDIRECT as a client-side error (the 500 we were hitting).
+  // Confirmation lives in onClick + preventDefault on the submit button.
 
   return (
     <>
@@ -31,57 +36,45 @@ export default function SettingsActions({ hasActiveToken }: Props) {
             : "No active token. Generate one to start archiving sessions to the cloud — the new install command will appear on the dashboard."}
         </p>
         <div className="settings-actions-row">
-          <form
-            action={() => {
-              if (
-                hasActiveToken &&
-                !window.confirm(
-                  "Generate a new token? The current one stops working immediately and your archiver will need the new install command before its next upload.",
-                )
-              ) {
-                return;
-              }
-              setBusy("regen");
-              startTransition(() => {
-                generateApiToken();
-              });
-            }}
-          >
+          <form action={generateApiToken}>
             <button
               type="submit"
               className="btn btn-sm btn-primary"
-              disabled={pending || busy !== null}
+              onClick={(e) => {
+                if (
+                  hasActiveToken &&
+                  !window.confirm(
+                    "Generate a new token? The current one stops working immediately and your archiver will need the new install command before its next upload.",
+                  )
+                ) {
+                  e.preventDefault();
+                }
+              }}
             >
-              {busy === "regen"
-                ? "Generating…"
-                : hasActiveToken
-                  ? "Regenerate token"
-                  : "Generate token"}
+              {hasActiveToken ? "Regenerate token" : "Generate token"}
             </button>
           </form>
           {hasActiveToken && (
             <form
-              action={() => {
-                if (
-                  !window.confirm(
-                    "Disconnect? Your archiver will stop uploading until you generate a new token.",
-                  )
-                ) {
-                  return;
-                }
-                setBusy("revoke");
-                startTransition(async () => {
-                  await revokeApiToken();
-                  setBusy(null);
-                });
+              action={async () => {
+                await revokeApiToken();
+                router.refresh();
               }}
             >
               <button
                 type="submit"
                 className="btn btn-sm btn-danger"
-                disabled={pending || busy !== null}
+                onClick={(e) => {
+                  if (
+                    !window.confirm(
+                      "Disconnect? Your archiver will stop uploading until you generate a new token.",
+                    )
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
               >
-                {busy === "revoke" ? "Disconnecting…" : "Disconnect"}
+                Disconnect
               </button>
             </form>
           )}
@@ -131,28 +124,26 @@ export default function SettingsActions({ hasActiveToken }: Props) {
           bodies in blob storage are best-effort deleted. This can&apos;t be undone.
         </p>
         <div className="settings-actions-row">
-          <form
-            action={() => {
-              const confirm1 = window.confirm(
-                "Delete your account and every archived session? This can't be undone.",
-              );
-              if (!confirm1) return;
-              const confirm2 = window.prompt(
-                'Type "delete my haunt" to confirm.',
-              );
-              if (confirm2 !== "delete my haunt") return;
-              setBusy("delete");
-              startTransition(() => {
-                deleteAccount();
-              });
-            }}
-          >
+          <form action={deleteAccount}>
             <button
               type="submit"
               className="btn btn-sm btn-danger"
-              disabled={pending || busy === "delete"}
+              onClick={(e) => {
+                if (
+                  !window.confirm(
+                    "Delete your account and every archived session? This can't be undone.",
+                  )
+                ) {
+                  e.preventDefault();
+                  return;
+                }
+                const phrase = window.prompt(
+                  'Type "delete my haunt" to confirm.',
+                );
+                if (phrase !== "delete my haunt") e.preventDefault();
+              }}
             >
-              {busy === "delete" ? "Deleting…" : "Delete my account"}
+              Delete my account
             </button>
           </form>
         </div>
