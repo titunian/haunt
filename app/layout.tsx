@@ -4,9 +4,26 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://haunt-pied.vercel.app"),
-  title: "Haunt — every Claude Code session, archived",
+  title: {
+    default: "Haunt — every coding session, haunted",
+    template: "%s · Haunt",
+  },
   description:
-    "A little daemon that catches each Claude Code conversation as it ends, and stows it as clean markdown. Local by default. Bring your own VPS or cloud.",
+    "A little daemon that catches every Claude Code, Codex, and Cursor session the moment it ends, and stows it as clean, searchable markdown. Install once.",
+  openGraph: {
+    title: "Haunt — every coding session, haunted",
+    description:
+      "A little daemon that catches every Claude Code, Codex, and Cursor session the moment it ends, and stows it as clean, searchable markdown.",
+    url: "https://haunt-pied.vercel.app",
+    siteName: "Haunt",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Haunt — every coding session, haunted",
+    description:
+      "Every Claude Code, Codex, and Cursor session, archived as clean markdown. Install once.",
+  },
   icons: { icon: "/favicon.svg" },
 };
 

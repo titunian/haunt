@@ -7,7 +7,7 @@ import DocsSidebarHighlighter from "./DocsSidebarHighlighter";
 export const metadata = {
   title: "Docs — Haunt",
   description:
-    "Haunt — every Claude session, kept. Install, configure backends, manual commands, troubleshooting.",
+    "Install, configure backends, run commands, troubleshoot. Haunt — every coding session, haunted (Claude Code, Codex, Cursor).",
 };
 
 // JSX port of docs.html. Copy preserved verbatim. Sidebar active-link
