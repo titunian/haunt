@@ -53,25 +53,9 @@ export default async function DashboardPage({
       params.range === "7d" || params.range === "30d" ? params.range : "all",
   };
 
-  // Auto-mint token on first visit so the connect command is ready to copy.
-  const tokenRows = await db
-    .select({ id: apiTokens.id, createdAt: apiTokens.createdAt })
-    .from(apiTokens)
-    .where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt)))
-    .orderBy(desc(apiTokens.createdAt))
-    .limit(1);
-
-  let setupPlaintext: string | null = fresh;
-  const hadExistingToken = tokenRows.length > 0;
-  if (!hadExistingToken && !setupPlaintext) {
-    const minted = generateToken();
-    await db
-      .insert(apiTokens)
-      .values({ userId, hash: minted.hash, suffix: minted.suffix });
-    setupPlaintext = minted.plaintext;
-  }
-
-  // Stats — always over the user's full set, unfiltered.
+  // Stats — always over the user's full set, unfiltered. Needed before the
+  // auto-mint block so we can detect "has token but zero cloud sessions"
+  // (the state that was stuck on "Generating your install command…").
   const statsRows = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -83,6 +67,40 @@ export default async function DashboardPage({
     .where(eq(sessions.userId, userId));
   const stats =
     statsRows[0] ?? { total: 0, days: 0, bytes: 0, lastUpload: null };
+
+  const tokenRows = await db
+    .select({ id: apiTokens.id, createdAt: apiTokens.createdAt })
+    .from(apiTokens)
+    .where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt)))
+    .orderBy(desc(apiTokens.createdAt))
+    .limit(1);
+
+  let setupPlaintext: string | null = fresh;
+  const hadExistingToken = tokenRows.length > 0;
+  const userHasCloudSessions = stats.total > 0;
+
+  // We never store the plaintext — only the hash. So if a user lands on the
+  // onboarding view without a fresh cookie, the only way to surface a usable
+  // install command is to mint one. Two cases trigger that:
+  //   1. First-ever visit (no token at all)
+  //   2. A stale unused token from earlier testing (token exists, but zero
+  //      sessions ever made it to the cloud). The old token was never used —
+  //      revoking it is safe and gets the user unstuck.
+  // If the user has cloud sessions, the ConnectCard renders its collapsed
+  // "Connected" pill instead, so we don't need plaintext in that branch.
+  if (!setupPlaintext && (!hadExistingToken || !userHasCloudSessions)) {
+    if (hadExistingToken) {
+      await db
+        .update(apiTokens)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt)));
+    }
+    const minted = generateToken();
+    await db
+      .insert(apiTokens)
+      .values({ userId, hash: minted.hash, suffix: minted.suffix });
+    setupPlaintext = minted.plaintext;
+  }
   // Drizzle gives us either a Date or a stringy timestamp depending on
   // adapter; coerce to ISO once here so the client component is simple.
   const lu = stats.lastUpload as Date | string | null;
